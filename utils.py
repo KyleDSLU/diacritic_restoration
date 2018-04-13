@@ -5,7 +5,7 @@ import unidecode
 
 def decode_csv(csv_file):
     i = 0
-    with open('diacritic.csv','r') as fin:
+    with open(csv_file,'rb') as fin:
         reader=csv.reader(fin)
         for row in reader:
             temp=list(row)
@@ -17,8 +17,8 @@ def decode_csv(csv_file):
 
             i = i+1
 
-            fin.close()
-    return dict(zip(keys,values))
+        fin.close()
+        return dict(zip(keys,values))
 
 def start_char_addition(file_name, end_char, start_char):
     with open(file_name, 'rb') as fin:
@@ -121,12 +121,47 @@ def format_answer(file_name, start_char):
             for i,row in enumerate(reader):
                 if row[0] != start_char:
                     writer.writerow([unicode(i),'\"'+row[0]+'\"'])
-        fout.close()
-    fin.close()
+            fout.close()
+            fin.close()
 
 def strip_dev(file_name):
     with open(file_name, 'rb') as fin:
+        fin.close()
+
+def create_char_ngram(destination, train, n, n_after=0):
+    with open(train, 'rb') as fin:
+        reader = csvu.reader(fin, encoding='utf-8')
+        csv_data = []
+        for row in reader:
+            csv_data.append(row)
+
+        fin.close()
+
+    diacritic_dict = decode_csv('diacritic.csv')
+    prec_char = n-1-n_after
+
+    ngram_dict = {} 
+    for row in csv_data:
+        string_row = row[0]
+        parsable_len = len(string_row)-n_after-1
+        for i,char in enumerate(string_row):
+            if (char in diacritic_dict.keys() or char in diacritic_dict.values()):
+                if (i>=prec_char and i<=parsable_len):
+                    string_to_add = string_row[i-prec_char:i+1+n_after]
+                elif (i<prec_char):
+                    string_to_add = string_row[:i+1+n_after]
+                elif (i>parsable_len):
+                    string_to_add = string_row[i-prec_char:]
+                
+                if string_to_add not in ngram_dict.keys():
+                    ngram_dict[string_to_add] = 1
+                else:
+                    ngram_dict[string_to_add] += 1
+
+
+    with open(destination, 'w+') as fout:
+        writer = csvu.DictWriter(fout, ngram_dict.keys(), encoding='utf-8')
+        writer.writeheader()
+        writer.writerow(ngram_dict)
+        fout.close()
         
-
-
-
