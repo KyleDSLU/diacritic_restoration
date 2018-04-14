@@ -1,3 +1,4 @@
+import numpy as np
 import csv
 import unicodecsv as csvu
 import random
@@ -140,28 +141,70 @@ def create_char_ngram(destination, train, n, n_after=0):
     diacritic_dict = decode_csv('diacritic.csv')
     prec_char = n-1-n_after
 
+    '''finding all trigrams'''
+    print('Finding all Trigrams')
     ngram_dict = {} 
-    for row in csv_data:
+    ngram_clist = []
+    for j,row in enumerate(csv_data):
+        if j%5000 == 0:
+            print j,len(csv_data)
+
         string_row = row[0]
         parsable_len = len(string_row)-n_after-1
         for i,char in enumerate(string_row):
             if (char in diacritic_dict.keys() or char in diacritic_dict.values()):
                 if (i>=prec_char and i<=parsable_len):
                     string_to_add = string_row[i-prec_char:i+1+n_after]
+                    string_comp = string_to_add[:prec_char] + u'<*>' + string_to_add[n-n_after:]
                 elif (i<prec_char):
                     string_to_add = string_row[:i+1+n_after]
+                    string_comp = string_to_add[:i] + u'<*>' + string_to_add[i+1:]
                 elif (i>parsable_len):
                     string_to_add = string_row[i-prec_char:]
-                
+                    string_comp = string_to_add[:prec_char] + u'<*>' + string_to_add[n-n_after:]
+
                 if string_to_add not in ngram_dict.keys():
                     ngram_dict[string_to_add] = 1
                 else:
                     ngram_dict[string_to_add] += 1
 
+                '''Create complementary list with all occurrences of trigram minus char'''
+                if string_comp not in ngram_clist:
+                   ngram_clist.append(string_comp) 
 
+
+    print('Writing ngram Dictionary to ' + destination)
     with open(destination, 'w+') as fout:
         writer = csvu.DictWriter(fout, ngram_dict.keys(), encoding='utf-8')
         writer.writeheader()
         writer.writerow(ngram_dict)
         fout.close()
         
+    print('Calculating complementary dictionary')
+    comp_count = np.zeros(len(ngram_clist), dtype='int')
+    for i,comp in enumerate(ngram_clist):
+        if i%1000==0: print i, len(ngram_clist)
+        if len(comp)-2 < n:
+            prec_char = comp.find(u'<*>')
+            end_char = len(comp)-2-prec_char
+        else:
+            prec_char = n-1-n_after
+            end_char = n_after+1
+        for row in csv_data:
+            string_row = row[0]
+            if (len(comp) <= len(string_row)+2 and string_row != u'<$>'):
+                for j in range(0, len(string_row)-n_after):
+                    string_comp = string_row[j:j+prec_char] + u'<*>' + string_row[j+prec_char+1:j+prec_char+end_char]
+                    #print string_comp, comp, string_comp==comp
+                    if string_comp == comp:
+                        comp_count[i] += 1
+                        
+    comp_dict = dict(zip(ngram_clist,list(comp_count)))
+    comp_destination = '.' + destination.split('.')[1] + '_comp.csv'
+    print('Writing ngram comp Dictionary to ' + comp_destination)
+    with open(comp_destination, 'w+') as fout:
+        writer = csvu.DictWriter(fout, comp_dict.keys(), encoding='utf-8')
+        writer.writeheader()
+        writer.writerow(comp_dict)
+        fout.close()
+
