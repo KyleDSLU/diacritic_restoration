@@ -127,7 +127,24 @@ def format_answer(file_name, start_char):
 
 def strip_dev(file_name):
     with open(file_name, 'rb') as fin:
+        reader = csvu.reader(fin, encoding='utf-8')
+        stripped = []
+        diacritic_dict = decode_csv('diacritic.csv')
+        inv_dict = {v: k for k, v in diacritic_dict.iteritems()}
+        for row in reader:
+            for i, char in enumerate(row[0]):
+                if char in diacritic_dict.values():
+                    row[0] = row[0][:i] + unicode(inv_dict[char]) + row[0][i+1:]
+            stripped.append(row)
+            
         fin.close()
+    
+    with open('.'+file_name.strip('.csv')+'_stripped.csv', 'w+') as fout:
+        writer = csvu.writer(fout, encoding='utf-8')
+        for row in stripped:
+            writer.writerow(row)
+
+        fout.close()
 
 def create_char_ngram(destination, train, n, n_after=0):
     with open(train, 'rb') as fin:
@@ -183,7 +200,7 @@ def create_char_ngram(destination, train, n, n_after=0):
     print('Calculating complementary dictionary')
     comp_count = np.zeros(len(ngram_clist), dtype='int')
     for i,comp in enumerate(ngram_clist):
-        if i%1000==0: print i, len(ngram_clist)
+        if i%100==0: print i, len(ngram_clist)
         if len(comp)-2 < n:
             prec_char = comp.find(u'<*>')
             end_char = len(comp)-2-prec_char
