@@ -42,100 +42,130 @@ class diacritic_preprocess():
     def ngram_process(self, n, n_after, ngram_csv):
         prec_char = n-1-n_after
         for char in self.candidate_char:
-            string = char[1]
-            ngram_nd = string[char[3]]
-            ngram_d = char[0]
-            ngram_comp = u'<*>'
-            perm = []
+            ngram_d, ngram_nd, ngram_comp = self._ngram_preprocess(char, n, n_after, prec_char)
+            print ngram_d, ngram_nd, ngram_comp
+            
 
-            #Grab preceding characters
-            if (char[3] >= prec_char):
-                indexed_char = string[char[3]-prec_char:char[3]]
-                perm = self.find_permutations(indexed_char)
+    def _ngram_preprocess(self, char, n, n_after, prec_char):
+        string = char[1]
+        ngram_nd = string[char[3]]
+        ngram_nd_perm = {}
+        ngram_d = char[0]
+        ngram_d_perm = {}
+        ngram_comp = u'<*>'
+
+        #Get preceding characters
+        if (char[3] >= prec_char):
+            indexed_char = string[char[3]-prec_char:char[3]]
+            ngram_nd = indexed_char + ngram_nd
+            ngram_d = indexed_char + ngram_d
+            ngram_comp = indexed_char + ngram_comp
+
+        #Get preceding characters if index<available_char
+        else:
+            indexed_char = string[:char[3]]
+            ngram_nd = indexed_char + ngram_nd
+            ngram_d = indexed_char + ngram_d
+            ngram_comp = indexed_char + ngram_comp
+
+        #Get following characters
+        if (char[3]+n_after <= len(string)-1):
+            indexed_char = string[char[3]+1:char[3]+n_after+1]
+            ngram_nd = ngram_nd + indexed_char
+            ngram_d = ngram_d + indexed_char
+            ngram_comp = ngram_comp + indexed_char
+            
+        #Get characters_left<n_after
+        else:
+            indexed_char = string[char[3]+1:]
+            ngram_nd = ngram_nd + indexed_char
+            ngram_d = ngram_d + indexed_char
+            ngram_comp = ngram_comp + indexed_char
+
+        ngram_comp_perm, comp_index = self.find_comp_permutations(ngram_comp)
+        for key,value in ngram_comp_perm.iteritems():
+            key_d = self.replace_char_by_listindex(key,char[0],[comp_index,comp_index+2])
+            key_nd = self.replace_char_by_listindex(key,string[char[3]],[comp_index,comp_index+2])
+            value = self.replace_bool_by_listindex(value,-1,[comp_index,comp_index+2])
+            ngram_d_perm[key_d] = value
+            ngram_nd_perm[key_nd] = value
+
+        if len(ngram_comp_perm.keys())>0:
+            del(ngram_comp_perm[ngram_comp])
+            del(ngram_nd_perm[ngram_nd])
+            del(ngram_d_perm[ngram_d])
+
+        #print(ngram_d, ngram_d_perm)
+        return [ngram_d,ngram_d_perm],[ngram_nd,ngram_nd_perm],[ngram_comp,ngram_comp_perm]
+
+            
+
+    def find_comp_permutations(self,comp_string):
+        perm = {} 
+        bool_iter_nd = []
+        bool_iter_d = []
+        char_index = comp_string.find(u'<*>')
+
+        for i, char in enumerate(comp_string):
+            if char in self.diacritic_dict.keys() and (i < char_index or i > char_index+2 or char_index == -1):
+                perm_char = self.replace_char_by_index(comp_string, self.diacritic_dict[char], i)
+                bool_iter_d = [0]*i + [1] + [0]*(len(comp_string)-i-1)
+                bool_iter_nd = [0]*(i+1) + [0]*(len(comp_string)-i-1)
+                perm[perm_char] = bool_iter_d
+                perm[comp_string] = bool_iter_nd
+                sub_perms,null = self.find_comp_permutations(comp_string[i+1:])
                 
-                #Account for permutations
-                if (len(perm) > 0):
-                    perm.remove(indexed_char)
-                    ngram_nd_perm = [ind + ngram_nd for ind in perm]
-                    ngram_d_perm = [ind + ngram_d for ind in perm]
-                    ngram_comp_perm = [ind + ngram_comp for ind in perm]
-
-                ngram_nd = indexed_char + ngram_nd
-                ngram_d = indexed_char + ngram_d
-                ngram_comp = indexed_char + ngram_comp
-
-            #Grab preceding characters if index > prec_char)
-            else:
-                indexed_char = string[:char[3]]
-                perm = self.find_permutations(indexed_char)
-
-                #Account for permutations
-                if (len(perm) > 0):
-                    perm.remove(indexed_char)
-                    ngram_nd_perm = [ind + ngram_nd for ind in perm]
-                    ngram_d_perm = [ind + ngram_d for ind in perm]
-                    ngram_comp_perm = [ind + ngram_comp for ind in perm]
-
-                ngram_nd = indexed_char + ngram_nd
-                ngram_d = indexed_char + ngram_d
-                ngram_comp = indexed_char + ngram_comp
-
-
-            #Grab following characters
-            if (char[3]+n_after <= len(string)-1):
-                indexed_char = string[char[3]+1:char[3]+n_after+1]
-                perm = self.find_permutations(indexed_char)
-                
-                #Account for permutations
-                if len(perm) > 0:
-                    perm.remove(indexed_char)
-                    ngram_nd_perm = [ngram_nd + ind for ind in perm]
-                    ngram_d_perm = [ngram_d + ind for ind in perm]
-                    ngram_comp_perm = [ngram_comp + ind for ind in perm]
-                    
-                ngram_nd = ngram_nd + indexed_char
-                ngram_d = ngram_d + indexed_char
-                ngram_comp = ngram_comp + indexed_char
-
-                
-            #Grab following characters if index > parsable length
-            else:
-                indexed_char = string[char[3]+1:]
-                perm = self.find_permutations(indexed_char)
-
-                #Account for permutations
-                if len(perm) > 0:
-                    perm.remove(indexed_char)
-                    ngram_nd_perm = [ngram_nd + ind for ind in perm]
-                    ngram_d_perm = [ngram_d + ind for ind in perm]
-                    ngram_comp_perm = [ngram_comp + ind for ind in perm]
-
-                ngram_nd = ngram_nd + indexed_char
-                ngram_d = ngram_d + indexed_char
-                ngram_comp = ngram_comp + indexed_char
-
-            print(ngram_d, ngram_d_perm, ngram_nd, ngram_nd_perm, ngram_comp, ngram_comp_perm)
-
-    def find_permutations(self,string):
-        perm = []
-        for i, char in enumerate(string):
-            if char in self.diacritic_dict.keys():
-                perm_char = self.replace_char_by_index(string, self.diacritic_dict[char], i)
-                perm.append(perm_char)
-                perm.append(string)
-                sub_perms = self.find_permutations(string[i+1:])
-                for sub in sub_perms:
-                    perm.append(char + sub)
-                    perm.append(self.diacritic_dict[char] + sub)
+                for key,value in sub_perms.iteritems():
+                    if i == 0:
+                        j = 1
+                    else:
+                        j = i
+                    bool_iter_nd = bool_iter_nd[:j] + [0]*(len(comp_string)-len(key)-len(bool_iter_nd[:j])) + value
+                    bool_iter_d = bool_iter_d[:j] + [0]*(len(comp_string)-len(key)-len(bool_iter_d[:j])) + value
+                    test_nd = comp_string[:i]+char+key
+                    if test_nd not in perm.keys(): perm[test_nd] = bool_iter_nd
+                    test_d = comp_string[:i]+self.diacritic_dict[char]+key
+                    if test_d not in perm.keys(): perm[test_d] = bool_iter_d
                 break
 
-        return list(set(perm))
+        return perm, char_index
+
 
     def replace_char_by_index(self, string, replacement, index):
         return string[:index] + replacement + string[index+1:]
+
+    def replace_char_by_listindex(self, string, replacement, listindex):
+        return string[:listindex[0]] + replacement + string[listindex[1]+1:]
+    
+    def replace_bool_by_listindex(self, bool_list, replacement, listindex):
+        return bool_list[:listindex[0]] + [replacement] + bool_list[listindex[1]+1:]
         
     def create_series(series_name, values):
         series = pd.Series(dict(zip(self.series_keys,values)))
         series.name = series_name
         return series 
+
+class ngram_object():
+    
+    def __init__(self, n, n_after, ngram_d, ngram_nd, ngram_comp, ngram_csv):
+        self.ngram_dict = utils.decode_csv(ngram_csv)
+        self.ngram_comp_dict = utils.decode_csv('.'+ngram_csv.split('.csv')+'_comp.csv')
+
+        self.ngram_cand = {'Diacritic': ngram_d, 'Non-Diacritic': ngram_nd}
+        self.ngram_comp = ngram_comp
+        self.n_param = [n, n_after]
+
+        self.diacritic_dict = utils.decode_csv('diacritic.csv') 
+
+        self.ngram_perm = self.find_permutations()
+
+    def find_permutations(self, ngram_list):
+        char_index = self.ngram_comp.find(u'<*>')
+        for ngram in ngram_list:
+            for i, char in enumerate(ngram):
+                if i != char_index and char in self.diacritic_dict.keys():
+                    print ngram, i, char
+                    
+             
+            
 
