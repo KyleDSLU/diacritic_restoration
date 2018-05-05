@@ -30,10 +30,15 @@ class diacritic_preprocess():
 
         # Build list of words and predicting metrics
         self.dict_words = {}
+        self.words_index = []
         for char in self.candidate_char:
             if char[1] not in self.dict_words.keys():
                 self.dict_words[char[1]] = [0]*len(char[1])
+            if char[2] not in self.words_index:
+                self.words_index.append(char[2])
                 
+        tokens = self._tokenize()
+        
         # Initial run through of dict_word
         #self.ngram_process(3,1,'./ref/char_gram/trigram/trigram_sym.csv',400,400)
         #self.ngram_process(3,0,'./ref/char_gram/trigram/trigram_2p0f.csv',400,400)
@@ -43,42 +48,52 @@ class diacritic_preprocess():
         #self.ngram_process(1,0,'./ref/char_gram/unigram/unigram.csv',75,75)
 
         # Determine ambigious diacritics
-        significance_threshold = 50
-        ambig_list = []
-        for char in self.candidate_char:
-            decision_value = self.dict_words[char[1]][char[3]]
-            if abs(decision_value) < significance_threshold:
-                ambig_list.append(char)
-            elif decision_value > 0:
-                original_string = self.list_string[char[2]][0]
-                changed_string = original_string[:char[3]] + char[0] + original_string[char[3]+1:]
-                self.list_string[char[2]][0] = changed_string
+        # significance_threshold = 50
+        # ambig_list = []
+        # for char in self.candidate_char:
+        #     decision_value = self.dict_words[char[1]][char[3]]
+        #     if abs(decision_value) < significance_threshold:
+        #         ambig_list.append(char)
+        #     elif decision_value > 0:
+        #         original_string = self.list_string[char[2]][0]
+        #         changed_string = original_string[:char[3]] + char[0] + original_string[char[3]+1:]
+        #         self.list_string[char[2]][0] = changed_string
         
-        ambig_word_last = 0 
-        ambig_perm = []
-        for ambig in ambig_list:
-            ambig_word = ambig[2]
-            if ambig_word != ambig_word_last:
-                if ambig_perm:
-                    results = self._unigram_analysis(ambig_perm, './ref/unigram/unigram.csv')
-                    if results[1]>1:
-                        self.list_string[ambig_word_last][0] = ambig_perm[results[0]]
-                        #print ('setting value to ' + self.list_string[ambig_word_last][0])
-                l = self._ambig_perm(ambig[0],[ambig[1]],ambig[3])
-                ambig_word_last = ambig_word
-                ambig_perm = l
-            else:
-                ambig_perm.extend([ambig[1]])
-                l = self._ambig_perm(ambig[0],ambig_perm,ambig[3])
-                ambig_perm.extend(l)
-                list(set(ambig_perm))
+        # ambig_word_last = 0 
+        # ambig_perm = []
+        # for ambig in ambig_list:
+        #     ambig_word = ambig[2]
+        #     if ambig_word != ambig_word_last:
+        #         if ambig_perm:
+        #             results = self._unigram_analysis(ambig_perm, './ref/unigram/unigram.csv')
+        #             if results[1]>1:
+        #                 self.list_string[ambig_word_last][0] = ambig_perm[results[0]]
+        #                 #print ('setting value to ' + self.list_string[ambig_word_last][0])
+        #         l = self._ambig_perm(ambig[0],[ambig[1]],ambig[3])
+        #         ambig_word_last = ambig_word
+        #         ambig_perm = l
+        #     else:
+        #         ambig_perm.extend([ambig[1]])
+        #         l = self._ambig_perm(ambig[0],ambig_perm,ambig[3])
+        #         ambig_perm.extend(l)
+        #         list(set(ambig_perm))
                 
             #print self._unigram_analysis(ambig_perm, './ref/char_gram/unigram/unigram.csv')
         #del self.list_string[0]
                 
 
-    def _bigram_analysis
-
+    def _tokenize(self,n):
+        tokens = []
+        for word in self.words_index:
+            token = self.list_string[word] 
+            for i in range(1,n):
+                index = self.list_string[word-i]
+                token.insert(index,0)
+                if index = u'<$>':
+                    break
+            tokens.append(token) 
+        return tokens
+            
     def _unigram_analysis(self, l, csv_file):
         csv_unigram = self._unigram_d #self._ngram_csv_return(csv_file)
         unique_words = float(len(csv_unigram))
