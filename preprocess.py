@@ -6,24 +6,17 @@ import pandas as pd
 import utils
 
 import re
-import nltk
-from googletrans import Translator
 import csv
+import unicodecsv as csvu
+import operator
 
 class diacritic_preprocess():
 
     def __init__(self, list_string):
-        self.translator = Translator()
-        
         self.list_string = list_string
-        #self.string = re.findall(r"\w+|[^\w\s]", list_string, re.UNICODE)
 
         self.diacritic_dict = utils.decode_csv('diacritic.csv') 
-        #self.trigram_asprec = utils.decode_csv('./ref/trigram_asym/trigram_asym_prec.csv')
-        #self.trigram_asprec_comp = utils.decode_csv('./ref/trigram_asym/trigram_asym_prec_comp.csv')
-        #self.trigram_asfol_comp = utils.decode_csv('./ref/trigram_asym/trigram_asym_fol_comp.csv')
-        #self.trigram_sym = utils.decode_csv('./ref/trigram_sym/trigram_sym.csv')
-        #self.trigram_sym_comp = utils.decode_csv('./ref/trigram_sym/trigram_sym_comp.csv')
+        self._unigram_d = self._ngram_csv_return('./ref/unigram/unigram.csv')
 
         self.candidate_char = []
         cursor = 0
@@ -35,16 +28,214 @@ class diacritic_preprocess():
                     char_diacritic = self.diacritic_dict[char] 
                     self.candidate_char.append([char_diacritic, word, i, j])
 
-        self.series_keys = [row[2] for row in self.candidate_char]
-        #self.pd_series = []
-        #self.ngram_process(list_string)
-
-    def ngram_process(self, n, n_after, ngram_csv):
-        prec_char = n-1-n_after
+        # Build list of words and predicting metrics
+        self.dict_words = {}
         for char in self.candidate_char:
+            if char[1] not in self.dict_words.keys():
+                self.dict_words[char[1]] = [0]*len(char[1])
+                
+        # Initial run through of dict_word
+        #self.ngram_process(3,1,'./ref/char_gram/trigram/trigram_sym.csv',400,400)
+        #self.ngram_process(3,0,'./ref/char_gram/trigram/trigram_2p0f.csv',400,400)
+        #self.ngram_process(3,2,'./ref/char_gram/trigram/trigram_0p2f.csv',400,400)
+        #self.ngram_process(2,0,'./ref/char_gram/bigram/bigram1p0f.csv',200,200)
+        #self.ngram_process(2,1,'./ref/char_gram/bigram/bigram0p1f.csv',200,200)
+        #self.ngram_process(1,0,'./ref/char_gram/unigram/unigram.csv',75,75)
+
+        # Determine ambigious diacritics
+        significance_threshold = 50
+        ambig_list = []
+        for char in self.candidate_char:
+            decision_value = self.dict_words[char[1]][char[3]]
+            if abs(decision_value) < significance_threshold:
+                ambig_list.append(char)
+            elif decision_value > 0:
+                original_string = self.list_string[char[2]][0]
+                changed_string = original_string[:char[3]] + char[0] + original_string[char[3]+1:]
+                self.list_string[char[2]][0] = changed_string
+        
+        ambig_word_last = 0 
+        ambig_perm = []
+        for ambig in ambig_list:
+            ambig_word = ambig[2]
+            if ambig_word != ambig_word_last:
+                if ambig_perm:
+                    results = self._unigram_analysis(ambig_perm, './ref/unigram/unigram.csv')
+                    if results[1]>1:
+                        self.list_string[ambig_word_last][0] = ambig_perm[results[0]]
+                        #print ('setting value to ' + self.list_string[ambig_word_last][0])
+                l = self._ambig_perm(ambig[0],[ambig[1]],ambig[3])
+                ambig_word_last = ambig_word
+                ambig_perm = l
+            else:
+                ambig_perm.extend([ambig[1]])
+                l = self._ambig_perm(ambig[0],ambig_perm,ambig[3])
+                ambig_perm.extend(l)
+                list(set(ambig_perm))
+                
+            #print self._unigram_analysis(ambig_perm, './ref/char_gram/unigram/unigram.csv')
+        #del self.list_string[0]
+                
+
+    def _bigram_analysis
+
+    def _unigram_analysis(self, l, csv_file):
+        csv_unigram = self._unigram_d #self._ngram_csv_return(csv_file)
+        unique_words = float(len(csv_unigram))
+        prob_l = []
+        for word in l:
+            try:
+                prob = (csv_unigram[str(word)]+1)
+                #print word,prob
+            except:
+                prob = 0.001 
+                #print type(word),prob
+
+            #print prob,word
+            prob_l.append(prob)
+
+        return max(enumerate(prob_l), key=operator.itemgetter(1)) 
+        
+    def _ngramword_csv_return(self,csv_file):
+        with open(csv_file, 'rb') as fin:
+            reader = csvu.DictReader(fin, encoding='utf-8')
+            for row in reader:
+                d = row
+            fin.close()
+            return d 
+
+    def _ambig_perm(self, character, word_list, index):
+        return_list = []
+        for word in word_list:
+            return_list.append(word)
+            word_replace = word[:index] + character + word[index+1:]
+            return_list.append(word_replace)
+
+        return list(set(return_list))
+
+        
+
+    def ngram_process(self, n, n_after, ngram_csv, ngram_weight, pred_weight):
+        csv_diacritic = self._ngram_csv_return(ngram_csv)
+        unique_ngram = len(csv_diacritic)
+
+        csv_comp = self._ngram_csv_return(ngram_csv.split('.csv')[0] + '_comp.csv')
+
+        prec_char = n-1-n_after
+        
+        # Calculate Probabilities
+        for char in self.candidate_char:
+            # return dictionary in the form of [raw_ngram, {dict of permutations of ngram}] 
+            # for diacritic, non-diacritic, and comp forms of ngram
             ngram_d, ngram_nd, ngram_comp = self._ngram_preprocess(char, n, n_after, prec_char)
-            print ngram_d, ngram_nd, ngram_comp
+            list_d = [ngram_d[0]]
+            list_nd = [ngram_nd[0]]
+
+            for perm in ngram_d[1]:
+                list_d.append(perm)
+            for perm in ngram_nd[1]:
+                list_nd.append(perm)
+
+            count_analysis_d, count_analysis_nd = self._ngram_countanalysis(list_d, list_nd, csv_diacritic)
+
+            if count_analysis_d[0] != 0:
+                l = [ngram_d[1].keys(),ngram_comp[1].keys()]
+                for i,value in enumerate(l[0]): 
+                    if value == list_d[count_analysis_d[0]]:
+                        d_comp = l[1][i]
+                        d_gram = value
+                        d_count = csv_diacritic[d_gram]
+
+                        try:
+                            d_prob = (csv_diacritic[d_gram]+1)/float(csv_comp[d_comp]+unique_ngram)
+                        except:
+                            d_prob = 1/(float(unique_ngram))
+
+                        d_predict = ngram_d[1][d_gram]
+                        break
+
+            else:
+                d_comp = ngram_comp[0]
+                d_gram = list_d[count_analysis_d[0]]
+
+                try:
+                    d_prob = (csv_diacritic[d_gram]+1)/float(csv_comp[d_comp]+unique_ngram)
+                except:
+                    d_prob = 1/float(unique_ngram)
+
+                d_predict = None
+
+            if count_analysis_nd[0] != 0:
+                l = [ngram_nd[1].keys(),ngram_comp[1].keys()]
+                for i,value in enumerate(l[0]):
+                    if value == list_nd[count_analysis_nd[0]]:
+                        nd_comp = l[1][i] 
+                        nd_gram = value
+                        nd_count = csv_diacritic[nd_gram]
+                        
+                        try:
+                            nd_prob = (csv_diacritic[nd_gram]+1)/(float(csv_comp[nd_comp]+unique_ngram))
+                        except:
+                            nd_prob = 1/(float(unique_ngram))
+
+                        nd_predict = ngram_nd[1][nd_gram]
+                        break
+                        
+            else:
+                nd_comp = ngram_comp[0]
+                nd_gram = list_nd[count_analysis_nd[0]]
+
+                try:
+                    nd_prob = (csv_diacritic[nd_gram]+1)/float(csv_comp[nd_comp]+unique_ngram)
+                except:
+                    nd_prob = 1/float(unique_ngram)
+
+                nd_predict = None
+
+            # Make some decisions here
+            if d_prob > nd_prob:
+                decision_parameters = [d_prob-nd_prob, d_predict, d_gram]
+            elif nd_prob > d_prob:
+                decision_parameters = [d_prob-nd_prob, nd_predict, nd_gram]
+            else:
+                decision_parameters = [0,0]
+
+            # Add probability weight to index of character to be changed
+            self.dict_words[char[1]][char[3]] += int(decision_parameters[0]*ngram_weight)
+            # Account for prediction data to skew other candidate character
+            if decision_parameters[1]:
+                for i,value in enumerate(decision_parameters[1]):
+                    if value > 0:
+                        self.dict_words[char[1]][char[3]+i-n+1+n_after] += int(decision_parameters[0]*pred_weight)
+
+            #print char[1],self.dict_words[char[1]]
+
             
+    def _ngram_countanalysis(self, l_d, l_nd, d_diacritic):
+        count_d = []
+        count_nd = []
+        for i in range(len(l_d)):
+            if l_d[i] in d_diacritic.keys():
+                count_d.append(d_diacritic[l_d[i]])
+            else:
+                count_d.append(0)
+            if l_nd[i] in d_diacritic.keys():
+                count_nd.append(d_diacritic[l_nd[i]])
+            else:
+                count_nd.append(0)
+
+        return max(enumerate(count_d), key=operator.itemgetter(1)), max(enumerate(count_nd), key=operator.itemgetter(1))
+
+
+    def _ngram_csv_return(self,csv_file):
+        with open(csv_file, 'rb') as fin:
+            reader = csvu.DictReader(fin, encoding='utf-8')
+            for row in reader:
+                d = row
+            for key,value in d.iteritems():
+                d[key] = int(value)
+            fin.close()
+            return d 
 
     def _ngram_preprocess(self, char, n, n_after, prec_char):
         string = char[1]
@@ -82,7 +273,7 @@ class diacritic_preprocess():
             ngram_d = ngram_d + indexed_char
             ngram_comp = ngram_comp + indexed_char
 
-        ngram_comp_perm, comp_index = self.find_comp_permutations(ngram_comp)
+        ngram_comp_perm, comp_index = self._find_comp_permutations(ngram_comp)
         for key,value in ngram_comp_perm.iteritems():
             key_d = self.replace_char_by_listindex(key,char[0],[comp_index,comp_index+2])
             key_nd = self.replace_char_by_listindex(key,string[char[3]],[comp_index,comp_index+2])
@@ -100,7 +291,7 @@ class diacritic_preprocess():
 
             
 
-    def find_comp_permutations(self,comp_string):
+    def _find_comp_permutations(self,comp_string):
         perm = {} 
         bool_iter_nd = []
         bool_iter_d = []
@@ -113,7 +304,7 @@ class diacritic_preprocess():
                 bool_iter_nd = [0]*(i+1) + [0]*(len(comp_string)-i-1)
                 perm[perm_char] = bool_iter_d
                 perm[comp_string] = bool_iter_nd
-                sub_perms,null = self.find_comp_permutations(comp_string[i+1:])
+                sub_perms,null = self._find_comp_permutations(comp_string[i+1:])
                 
                 for key,value in sub_perms.iteritems():
                     if i == 0:
@@ -145,27 +336,4 @@ class diacritic_preprocess():
         series.name = series_name
         return series 
 
-class ngram_object():
-    
-    def __init__(self, n, n_after, ngram_d, ngram_nd, ngram_comp, ngram_csv):
-        self.ngram_dict = utils.decode_csv(ngram_csv)
-        self.ngram_comp_dict = utils.decode_csv('.'+ngram_csv.split('.csv')+'_comp.csv')
-
-        self.ngram_cand = {'Diacritic': ngram_d, 'Non-Diacritic': ngram_nd}
-        self.ngram_comp = ngram_comp
-        self.n_param = [n, n_after]
-
-        self.diacritic_dict = utils.decode_csv('diacritic.csv') 
-
-        self.ngram_perm = self.find_permutations()
-
-    def find_permutations(self, ngram_list):
-        char_index = self.ngram_comp.find(u'<*>')
-        for ngram in ngram_list:
-            for i, char in enumerate(ngram):
-                if i != char_index and char in self.diacritic_dict.keys():
-                    print ngram, i, char
-                    
-             
-            
 
