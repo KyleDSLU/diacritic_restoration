@@ -1,7 +1,6 @@
 #!/usr/bin/env python 
 
 import numpy as np
-import pandas as pd
 
 import utils
 
@@ -19,7 +18,7 @@ class diacritic_preprocess():
         self._unigram_d = self._ngram_csv_return('./ref/unigram/unigram.csv')
 
         self.candidate_char = []
-        cursor = 0
+
         for i,word in enumerate(self.list_string):
             word = word[0]
 
@@ -37,7 +36,12 @@ class diacritic_preprocess():
             if char[2] not in self.words_index:
                 self.words_index.append(char[2])
                 
-        tokens = self._tokenize()
+        lst = self._ngrams_split(3)
+        ngram_perm = []
+        for ngram in lst:
+            lst_perm = self._find_word_permutations(ngram)
+            print (len(lst_perm), ngram)
+
         
         # Initial run through of dict_word
         #self.ngram_process(3,1,'./ref/char_gram/trigram/trigram_sym.csv',400,400)
@@ -82,17 +86,34 @@ class diacritic_preprocess():
         #del self.list_string[0]
                 
 
-    def _tokenize(self,n):
-        tokens = []
-        for word in self.words_index:
-            token = self.list_string[word] 
-            for i in range(1,n):
-                index = self.list_string[word-i]
-                token.insert(index,0)
-                if index = u'<$>':
-                    break
-            tokens.append(token) 
-        return tokens
+    def _ngrams_split(self, n):
+        word_to_ignore = [u'<$>','.']
+        ADD_FLAG = False
+        lst = self.list_string
+        lst_out = []
+        for i in range(len(lst)):
+            if lst[i][0] not in word_to_ignore:
+                stop_ind = 0
+                for j in range(1,n):
+                    if (lst[i-j+1][0] in word_to_ignore):
+                        stop_ind = j-1
+                        break
+                    else:
+                        stop_ind = j
+                string = lst[i][0]
+                for j in range(1,stop_ind+1):
+                    if lst[i-j] != u'.':
+                        string = lst[i-j][0] + ' ' + string
+                lst_out.append(string)
+
+            elif lst[i] == u'<$>':
+                string = lst[i][0]
+                lst_out.append(string)
+
+        return lst_out
+
+
+
             
     def _unigram_analysis(self, l, csv_file):
         csv_unigram = self._unigram_d #self._ngram_csv_return(csv_file)
@@ -247,7 +268,7 @@ class diacritic_preprocess():
             reader = csvu.DictReader(fin, encoding='utf-8')
             for row in reader:
                 d = row
-            for key,value in d.iteritems():
+            for key,value in d.items():
                 d[key] = int(value)
             fin.close()
             return d 
@@ -289,7 +310,7 @@ class diacritic_preprocess():
             ngram_comp = ngram_comp + indexed_char
 
         ngram_comp_perm, comp_index = self._find_comp_permutations(ngram_comp)
-        for key,value in ngram_comp_perm.iteritems():
+        for key,value in ngram_comp_perm.items():
             key_d = self.replace_char_by_listindex(key,char[0],[comp_index,comp_index+2])
             key_nd = self.replace_char_by_listindex(key,string[char[3]],[comp_index,comp_index+2])
             value = self.replace_bool_by_listindex(value,-1,[comp_index,comp_index+2])
@@ -321,7 +342,7 @@ class diacritic_preprocess():
                 perm[comp_string] = bool_iter_nd
                 sub_perms,null = self._find_comp_permutations(comp_string[i+1:])
                 
-                for key,value in sub_perms.iteritems():
+                for key,value in sub_perms.items():
                     if i == 0:
                         j = 1
                     else:
@@ -336,6 +357,30 @@ class diacritic_preprocess():
 
         return perm, char_index
 
+    def _find_word_permutations(self,comp_string):
+        perm = [] 
+        char_index = comp_string.find(u'<*>')
+
+        for i, char in enumerate(comp_string):
+            if char in self.diacritic_dict.keys() and (i < char_index or i > char_index+2 or char_index == -1):
+                perm_char = self.replace_char_by_index(comp_string, self.diacritic_dict[char], i)
+                perm.append(perm_char)
+                perm.append(comp_string)
+                sub_perms = self._find_word_permutations(comp_string[i+1:])
+                
+                for index in sub_perms:
+                    if i == 0:
+                        j = 1
+                    else:
+                        j = i
+                    #print (char, type(char), index, type(index))
+                    test_nd = comp_string[:i]+char+index
+                    if test_nd not in perm: perm.append(test_nd)
+                    test_d = comp_string[:i]+self.diacritic_dict[char]+index
+                    if test_d not in perm: perm.append(test_d)
+                break
+
+        return perm
 
     def replace_char_by_index(self, string, replacement, index):
         return string[:index] + replacement + string[index+1:]

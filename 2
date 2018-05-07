@@ -59,7 +59,7 @@ def gram_count(tokens, n_filter, n):
     lst = ngrams_split(tokens, n-1)
     shared_tokenng_list = pymp.shared.list(lst)
 
-    proc = 8
+    proc = 2
     length = length/(proc-1) 
 
     with pymp.Parallel(proc) as p:

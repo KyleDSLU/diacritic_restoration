@@ -13,18 +13,14 @@ from collections import Counter
 wikipedia.set_lang('az')
 
 def decode_csv(csv_file):
-    i = 0
-    with open(csv_file,'rb') as fin:
-        reader=csv.reader(fin)
-        for row in reader:
-            temp=list(row)
+    with open(csv_file,'r') as fin:
+        lines = fin.readlines()
+        for i,row in enumerate(lines):
+            s = re.findall(r'\w+|\.|\<\$\>',row)
             if i==0:
-                keys = [s.decode('utf-8') for s in temp]
-
+                keys = s
             if i==1:
-                values = [s.decode('utf-8') for s in temp]
-
-            i = i+1
+                values = s 
 
         fin.close()
         return dict(zip(keys,values))
@@ -390,7 +386,8 @@ def analyze_ngram(destination, train, n, n_after, dictionary, cdictionary, appen
     print('Calculating complementary dictionary')
     comp_count = np.zeros(len(ngram_clist), dtype='int')
     for i,comp in enumerate(ngram_clist):
-        if i%100==0: (print i, len(ngram_clist))
+        if i%100==0: 
+            print (i, len(ngram_clist))
         if len(comp)-2 < n:
             prec_char = comp.find(u'<*>')
             end_char = len(comp)-2-prec_char
