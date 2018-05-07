@@ -99,12 +99,12 @@ def n_grams_stat(input_file, encoding, n_filter, n):
 
 if __name__ == "__main__":
     start_time = datetime.now()
-    s = n_grams_stat("./data/azj_train.csv",'utf-8', n_filter=2, n=3)
+    s = n_grams_stat("./data/azj_train.csv",'utf-8', n_filter=3, n=3)
     dictionary = {}
     for result in s:
         dictionary[result[4]] = "{:10.6f}".format(result[2])
 
-    with open("./ref/bigram/bigram1p0f.csv", 'wb') as fout:
+    with open("./ref/word_gram/trigram/trigram2p0f.csv", 'wb') as fout:
         string = ','.join(dictionary.keys())+'\r\n'
         print(type(string))
         fout.write(string.encode('utf-8'))

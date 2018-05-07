@@ -8,6 +8,7 @@ import re
 import csv
 import unicodecsv as csvu
 import operator
+import math
 
 class diacritic_preprocess():
 
@@ -15,7 +16,9 @@ class diacritic_preprocess():
         self.list_string = list_string
 
         self.diacritic_dict = utils.decode_csv('diacritic.csv') 
-        self._unigram_d = self._ngram_csv_return('./ref/unigram/unigram.csv')
+        self._unigram_d = self._ngram_csv_return('./ref/word_gram/unigram/unigram.csv')
+        self._trigram_d = self._ngram_csv_return('./ref/word_gram/trigram/trigram2p0f.csv')
+        self._bigram_d = self._ngram_csv_return('./ref/word_gram/bigram/bigram1p0f.csv')
 
         self.candidate_char = []
 
@@ -32,57 +35,100 @@ class diacritic_preprocess():
         self.words_index = []
         for char in self.candidate_char:
             if char[1] not in self.dict_words.keys():
-                self.dict_words[char[1]] = [0]*len(char[1])
+                self.dict_words[char[2]] = [0]*len(char[1])
             if char[2] not in self.words_index:
                 self.words_index.append(char[2])
-                
+
         lst = self._ngrams_split(3)
         ngram_perm = []
-        for ngram in lst:
-            lst_perm = self._find_word_permutations(ngram)
-            print (len(lst_perm), ngram)
-
+        self._trigram_weight = 10000
+        self._bigram_weight = 10000
         
+        for nword,ngram in enumerate(lst):
+            lst_perm_temp = []
+            ngram = ngram.lower()
+
+            for ng in (ngram.split()):
+                lst_perm_temp.append(self._find_word_permutations(ng))
+            
+            lst_perm = []
+            for perm in lst_perm_temp:
+                for perm_word in perm:
+                    lst_perm.append(perm_word)
+            result = self._ngram_analysis(lst_perm,self._trigram_d)
+            if result:
+                if result[1] != -10000:
+                    for j,word in enumerate(lst_perm[result[0]]):
+                        word = word[-1]
+                        for i,char in enumerate(word):
+                            if char in self.diacritic_dict.keys():
+                                self.dict_words[nword][i] += -math.pow(10,result[1])*self._trigram_weight
+                            elif char in self.diacritic_dict.values():
+                                self.dict_words[nword][i] += math.pow(10,result[1])*self._trigram_weight
+            else:
+                old_ngram = ngram
+                ngram = ngram.split()
+                ngram = ' '.join(ngram[-2:])
+                lst_perm_temp = []
+                for ng in (ngram.split()):
+                    lst_perm_temp.append(self._find_word_permutations(ng))
+                
+                lst_perm = []
+                for perm in lst_perm_temp:
+                    for perm_word in perm:
+                        lst_perm.append(perm_word)
+                result = self._ngram_analysis(lst_perm,self._bigram_d)
+                if result:
+                    if result[1] != -10000:
+                        ln = len(lst_perm[result[0]].split())
+                        for word in enumerate(lst_perm[result[0]].split()):
+                            word = word[-1]
+                            for i,char in enumerate(word):
+                                if char in self.diacritic_dict.keys():
+                                    self.dict_words[nword][i] += -math.pow(10,result[1])*self._trigram_weight
+                                elif char in self.diacritic_dict.values():
+                                    self.dict_words[nword][i] += math.pow(10,result[1])*self._trigram_weight
+
+
+
         # Initial run through of dict_word
-        #self.ngram_process(3,1,'./ref/char_gram/trigram/trigram_sym.csv',400,400)
-        #self.ngram_process(3,0,'./ref/char_gram/trigram/trigram_2p0f.csv',400,400)
-        #self.ngram_process(3,2,'./ref/char_gram/trigram/trigram_0p2f.csv',400,400)
+        self.ngram_process(3,1,'./ref/char_gram/trigram/trigram_sym.csv',400,400)
+        self.ngram_process(3,0,'./ref/char_gram/trigram/trigram_2p0f.csv',400,400)
+        self.ngram_process(3,2,'./ref/char_gram/trigram/trigram_0p2f.csv',400,400)
         #self.ngram_process(2,0,'./ref/char_gram/bigram/bigram1p0f.csv',200,200)
         #self.ngram_process(2,1,'./ref/char_gram/bigram/bigram0p1f.csv',200,200)
         #self.ngram_process(1,0,'./ref/char_gram/unigram/unigram.csv',75,75)
 
         # Determine ambigious diacritics
-        # significance_threshold = 50
-        # ambig_list = []
-        # for char in self.candidate_char:
-        #     decision_value = self.dict_words[char[1]][char[3]]
-        #     if abs(decision_value) < significance_threshold:
-        #         ambig_list.append(char)
-        #     elif decision_value > 0:
-        #         original_string = self.list_string[char[2]][0]
-        #         changed_string = original_string[:char[3]] + char[0] + original_string[char[3]+1:]
-        #         self.list_string[char[2]][0] = changed_string
+        significance_threshold = 50
+        ambig_list = []
+        for char in self.candidate_char:
+            decision_value = self.dict_words[char[2]][char[3]]
+            if abs(decision_value) < significance_threshold:
+                ambig_list.append(char)
+            elif decision_value > 0:
+                original_string = self.list_string[char[2]][0]
+                changed_string = original_string[:char[3]] + char[0] + original_string[char[3]+1:]
+                self.list_string[char[2]][0] = changed_string
         
-        # ambig_word_last = 0 
-        # ambig_perm = []
-        # for ambig in ambig_list:
-        #     ambig_word = ambig[2]
-        #     if ambig_word != ambig_word_last:
-        #         if ambig_perm:
-        #             results = self._unigram_analysis(ambig_perm, './ref/unigram/unigram.csv')
-        #             if results[1]>1:
-        #                 self.list_string[ambig_word_last][0] = ambig_perm[results[0]]
-        #                 #print ('setting value to ' + self.list_string[ambig_word_last][0])
-        #         l = self._ambig_perm(ambig[0],[ambig[1]],ambig[3])
-        #         ambig_word_last = ambig_word
-        #         ambig_perm = l
-        #     else:
-        #         ambig_perm.extend([ambig[1]])
-        #         l = self._ambig_perm(ambig[0],ambig_perm,ambig[3])
-        #         ambig_perm.extend(l)
-        #         list(set(ambig_perm))
+        ambig_word_last = 0 
+        ambig_perm = []
+        for ambig in ambig_list:
+            ambig_word = ambig[2]
+            if ambig_word != ambig_word_last:
+                if ambig_perm:
+                    results = self._ngram_analysis(ambig_perm,self._unigram_d)
+                    if results[1]>1:
+                        self.list_string[ambig_word_last][0] = ambig_perm[results[0]]
+                l = self._ambig_perm(ambig[0],[ambig[1]],ambig[3])
+                ambig_word_last = ambig_word
+                ambig_perm = l
+            else:
+                ambig_perm.extend([ambig[1]])
+                l = self._ambig_perm(ambig[0],ambig_perm,ambig[3])
+                ambig_perm.extend(l)
+                list(set(ambig_perm))
                 
-            #print self._unigram_analysis(ambig_perm, './ref/char_gram/unigram/unigram.csv')
         #del self.list_string[0]
                 
 
@@ -112,26 +158,27 @@ class diacritic_preprocess():
 
         return lst_out
 
-
-
             
-    def _unigram_analysis(self, l, csv_file):
-        csv_unigram = self._unigram_d #self._ngram_csv_return(csv_file)
-        unique_words = float(len(csv_unigram))
-        prob_l = []
-        for word in l:
-            try:
-                prob = (csv_unigram[str(word)]+1)
-                #print word,prob
-            except:
-                prob = 0.001 
-                #print type(word),prob
+    def _ngram_analysis(self, l, csv_gram):
+        if l:
+            unique_words = float(len(csv_gram))
+            prob_l = []
+            for word in l:
+                try:
+                    #print(word)
+                    prob = csv_gram[word]
+                except KeyError as e:
+                    #print ('KeyError',e)
+                    prob = -10000
+                    #print type(word),prob
 
-            #print prob,word
-            prob_l.append(prob)
+                # print (prob,word)
+                prob_l.append(prob)
 
-        return max(enumerate(prob_l), key=operator.itemgetter(1)) 
-        
+            return max(enumerate(prob_l), key=operator.itemgetter(1)) 
+        else:
+            return None
+
     def _ngramword_csv_return(self,csv_file):
         with open(csv_file, 'rb') as fin:
             reader = csvu.DictReader(fin, encoding='utf-8')
@@ -175,7 +222,7 @@ class diacritic_preprocess():
             count_analysis_d, count_analysis_nd = self._ngram_countanalysis(list_d, list_nd, csv_diacritic)
 
             if count_analysis_d[0] != 0:
-                l = [ngram_d[1].keys(),ngram_comp[1].keys()]
+                l = [list(ngram_d[1].keys()),list(ngram_comp[1].keys())]
                 for i,value in enumerate(l[0]): 
                     if value == list_d[count_analysis_d[0]]:
                         d_comp = l[1][i]
@@ -202,7 +249,7 @@ class diacritic_preprocess():
                 d_predict = None
 
             if count_analysis_nd[0] != 0:
-                l = [ngram_nd[1].keys(),ngram_comp[1].keys()]
+                l = [list(ngram_nd[1].keys()),list(ngram_comp[1].keys())]
                 for i,value in enumerate(l[0]):
                     if value == list_nd[count_analysis_nd[0]]:
                         nd_comp = l[1][i] 
@@ -237,14 +284,13 @@ class diacritic_preprocess():
                 decision_parameters = [0,0]
 
             # Add probability weight to index of character to be changed
-            self.dict_words[char[1]][char[3]] += int(decision_parameters[0]*ngram_weight)
+            self.dict_words[char[2]][char[3]] += int(decision_parameters[0]*ngram_weight)
             # Account for prediction data to skew other candidate character
             if decision_parameters[1]:
                 for i,value in enumerate(decision_parameters[1]):
                     if value > 0:
-                        self.dict_words[char[1]][char[3]+i-n+1+n_after] += int(decision_parameters[0]*pred_weight)
+                        self.dict_words[char[2]][char[3]+i-n+1+n_after] += int(decision_parameters[0]*pred_weight)
 
-            #print char[1],self.dict_words[char[1]]
 
             
     def _ngram_countanalysis(self, l_d, l_nd, d_diacritic):
@@ -269,7 +315,7 @@ class diacritic_preprocess():
             for row in reader:
                 d = row
             for key,value in d.items():
-                d[key] = int(value)
+                d[key] = float(value)
             fin.close()
             return d 
 
@@ -322,7 +368,6 @@ class diacritic_preprocess():
             del(ngram_nd_perm[ngram_nd])
             del(ngram_d_perm[ngram_d])
 
-        #print(ngram_d, ngram_d_perm)
         return [ngram_d,ngram_d_perm],[ngram_nd,ngram_nd_perm],[ngram_comp,ngram_comp_perm]
 
             
@@ -373,7 +418,6 @@ class diacritic_preprocess():
                         j = 1
                     else:
                         j = i
-                    #print (char, type(char), index, type(index))
                     test_nd = comp_string[:i]+char+index
                     if test_nd not in perm: perm.append(test_nd)
                     test_d = comp_string[:i]+self.diacritic_dict[char]+index

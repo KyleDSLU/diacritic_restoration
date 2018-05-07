@@ -4,6 +4,7 @@ import unicodecsv as csvu
 from preprocess import diacritic_preprocess
 import utils
 import codecs
+import pymp
 
 
 class process_diacritic():
@@ -46,7 +47,7 @@ class process_diacritic():
         sentence = []
         sentences = []
         sentence_flag = False
-        with open(csv_file, 'w+') as fout:
+        with open(csv_file, 'wb') as fout:
             string = ','.join([u'id', u'token'])+'\r\n'
             fout.write(string.encode('utf-8'))
 
@@ -73,23 +74,44 @@ class process_diacritic():
             shared_sentences = pymp.shared.list(sentences)
             shared_output_dict = pymp.shared.dict({})
 
-            proc = 7
+            proc = 8
             with pymp.Parallel(proc) as p:
-                i = 0       #index counter
-                for index in p.iterate(shared_sentences):
-                    if i%5000==0:
-                        print('Processing Sentences',i,length/proc,p.num_thread)
+                i = 0
+                for index in shared_sentences:
+                    if i%10==0:
+                        print('Processing Sentences',i,length/(proc-1),p.thread_num)
+                    i+=1
                     sentence_num = index[0]
                     sentence = index[1]
                     analysis = diacritic_preprocess(sentence)
                     sentence = ' '.join(word[0] for word in analysis.list_string)
-                    shared_output_dict[sentence_num] = sentence 
+                    shared_output_dict[sentence_num] = sentence
+
+            # proc = 7
+            # print('Start Analysis')
+            # with pymp.Parallel(proc) as p:
+            #     i = 0       #index counter
+            #     p.print('Hello from: ', p.thread_num)
+            #     for index in p.iterate(shared_sentences):
+            #         if i%1==0:
+            #             print('Processing Sentences',i,length/proc,p.thread_num)
+            #         i += 1
+            #         print (index, p.thread_num)
+            #         sentence_num = index[0]
+            #         print (sentence_num, p.thread_num)
+            #         sentence = index[1]
+            #         print (sentence, p.thread_num)
+            #         analysis = diacritic_preprocess(sentence)
+            #         print (analysis, p.thread_num)
+            #         sentence = ' '.join(word[0] for word in analysis.list_string)
+            #         shared_output_dict[sentence_num] = sentence 
 
             j = 1
-            for value in shared_output_dict.values():
-                if value != u'<$>':
-                    string = ','.join([unicode(str(j)), u'\"'+result[0]+u'\"'])+'\r\n'
-                    fout.write(string.encode('utf-8'))
-                    j += 1
+            for lst_value in shared_output_dict.values():
+                for value in lst_value:
+                    if value != u'<$>':
+                        string = ','.join([str(j), u'\"'+value+u'\"'])+'\r\n'
+                        fout.write(string.encode('utf-8'))
+                        j += 1
 
             fout.close()
