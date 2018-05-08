@@ -77,12 +77,12 @@ class process_diacritic():
             proc = 8
             with pymp.Parallel(proc) as p:
                 i = 0
-                for index in shared_sentences:
+                for index in p.range(0,length):
+                    sentence_num = shared_sentences[index][0]
+                    sentence = shared_sentences[index][1]
                     if i%10==0:
-                        print('Processing Sentences',i,length/(proc-1),p.thread_num)
+                        print('Processing Sentences',index,i,length/(proc-1),p.thread_num)
                     i+=1
-                    sentence_num = index[0]
-                    sentence = index[1]
                     analysis = diacritic_preprocess(sentence)
                     sentence = ' '.join(word[0] for word in analysis.list_string)
                     shared_output_dict[sentence_num] = sentence
@@ -108,7 +108,7 @@ class process_diacritic():
 
             j = 1
             for lst_value in shared_output_dict.values():
-                for value in lst_value:
+                for value in lst_value.split(' '):
                     if value != u'<$>':
                         string = ','.join([str(j), u'\"'+value+u'\"'])+'\r\n'
                         fout.write(string.encode('utf-8'))
